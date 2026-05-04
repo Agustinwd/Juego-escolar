@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Trivia con Acción</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            touch-action: none; /* Previene scroll y zoom en móvil */
+            user-select: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #121212;
+            color: #ffffff;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            z-index: 2;
+        }
+        #top-bar {
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.2rem;
+            font-weight: bold;
+            background: rgba(0, 0, 0, 0.7);
+            border-bottom: 2px solid #00AEEF;
+            text-shadow: 1px 1px 2px black;
+        }
+        .stat-box { display: flex; flex-direction: column; align-items: center; }
+        .stat-label { font-size: 0.8rem; color: #aaa; }
+        
+        #question-display {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 174, 239, 0.9);
+            padding: 15px 25px;
+            border-radius: 12px;
+            border: 2px solid #fff;
+            text-align: center;
+            font-size: 1.4rem;
+            font-weight: bold;
+            width: 85%;
+            max-width: 600px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            display: none;
+            pointer-events: none;
+        }
+
+        #d-pad {
+            display: none;
+            position: absolute;
+            bottom: 30px;
+            left: 0;
+            width: 100%;
+            padding: 0 20px;
+            justify-content: space-between;
+            pointer-events: auto;
+        }
+        @media (hover: none) and (pointer: coarse) {
+            #d-pad {
+                display: flex;
+            }
+        }
+        
+        .d-btn {
+            background: rgba(0, 174, 239, 0.3);
+            border: 2px solid rgba(0, 174, 239, 0.8);
+            border-radius: 50%;
+            width: 70px;
+            height: 70px;
+            color: white;
+            font-size: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        .d-btn:active {
+            background: rgba(0, 174, 239, 0.7);
+            transform: scale(0.95);
+        }
+        .directional-btns {
+            display: flex;
+            gap: 15px;
+        }
+
+        #start-screen {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(18, 18, 18, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            pointer-events: auto;
+            text-align: center;
+            padding: 20px;
+        }
+        #start-screen h1 {
+            color: #00AEEF;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            text-shadow: 0 0 10px rgba(0, 174, 239, 0.5);
+        }
+        #qr-container {
+            margin: 25px 0;
+            background: white;
+            padding: 15px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 174, 239, 0.4);
+        }
+        #qr-container img {
+            display: block;
+        }
+        #start-btn {
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            background: #00AEEF;
+            color: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            transition: transform 0.1s;
+        }
+        #start-btn:active {
+            transform: scale(0.95);
+        }
+        .instructions {
+            color: #aaa;
+            max-width: 400px;
+            margin: 15px 0;
+            line-height: 1.5;
+        }
+
+        #flash {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 50;
+            transition: opacity 0.3s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+        <div id="ui-layer">
+            <div id="top-bar">
+                <div class="stat-box">
+                    <span class="stat-label">Racha</span>
+                    <span id="streak-display">0</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">Tiempo (s)</span>
+                    <span id="time-display" style="color: #ff5555;">10</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">Velocidad</span>
+                    <span>x<span id="speed-display">1.0</span></span>
+                </div>
+            </div>
+            <div id="question-display"></div>
+            <div id="d-pad">
+                <div class="directional-btns">
+                    <div class="d-btn" id="btn-left">◀</div>
+                    <div class="d-btn" id="btn-right">▶</div>
+                </div>
+                <div class="d-btn" id="btn-jump">▲</div>
+            </div>
+        </div>
+        <div id="flash"></div>
+        <div id="start-screen">
+            <h1>Trivia con Acción</h1>
+            <div class="instructions">
+                <b>Instrucciones:</b><br><br>
+                ¡Mueve al personaje celeste y <b>choca</b> contra la caja con la respuesta correcta antes de los 10s!<br><br>
+                Móvil: Usa los botones debajo<br>
+                PC: Usa las flechas del teclado
+            </div>
+            <!-- QR temporalmente removido
+            <div id="qr-container">
+                <img id="qr-code" src="" alt="Código QR" width="150" height="150">
+            </div>
+            <p class="stat-label">¡Escanea para compartir el juego!</p>
+            -->
+            <button id="start-btn">JUGAR</button>
+        </div>
+    </div>
+
+    <script>
+        /* 1. Configuración de Acceso / Generación QR (Temporalmente removido)
+        window.addEventListener('DOMContentLoaded', () => {
+            const qrImage = document.getElementById('qr-code');
+            const currentUrl = encodeURIComponent(window.location.href.split('#')[0].split('?')[0]);
+            qrImage.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${currentUrl}`;
+        });
+        */
+
+        // 2. Configuración Core de Canvas
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+
+        // Plataformas Sólidas
+        let platforms = [];
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+
+            // Recalcular plataformas según el ancho/alto (solo suelo, eliminadas las extra)
+            platforms = [
+                { x: 0, y: height - 60, width: width, height: 60, color: '#333' }
+            ];
+            
+            try {
+                if(player.y > height) player.y = height - 100; // Seguridad
+            } catch(e) {} // Previene error de ReferenceError antes de inicializarse jugador
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // 3. Variables y Estado de Juego
+        let isPlaying = false;
+        let lastTime = 0;
+        
+        let streak = 0;
+        let speedMultiplier = 1.0;
+        let timeLeft = 10;
+        let timerInterval;
+
+        // Jugador (Personaje Celeste)
+        const basePlayerSpeed = 500; // Más rápido
+        const player = {
+            width: 60, // Más grande para chocar más fácil
+            height: 60,
+            x: width / 2 - 30,
+            y: 0,
+            vx: 0,
+            vy: 0,
+            speed: basePlayerSpeed,
+            jumpForce: -900, // Salto más alto y potente para alcanzar plataformas fácil
+            gravity: 1800,
+            isGrounded: false
+        };
+
+        // Entradas (Teclado y Táctil)
+        const keys = { Left: false, Right: false, Up: false };
+
+        window.addEventListener('keydown', e => {
+            if (e.code === 'ArrowLeft') keys.Left = true;
+            if (e.code === 'ArrowRight') keys.Right = true;
+            if (e.code === 'ArrowUp' || e.code === 'Space') {
+                keys.Up = true;
+                if (player.isGrounded) jump();
+            }
+        });
+        window.addEventListener('keyup', e => {
+            if (e.code === 'ArrowLeft') keys.Left = false;
+            if (e.code === 'ArrowRight') keys.Right = false;
+            if (e.code === 'ArrowUp' || e.code === 'Space') keys.Up = false;
+        });
+
+        // Controles D-Pad
+        const bindTouch = (id, keyName) => {
+            const btn = document.getElementById(id);
+            btn.addEventListener('touchstart', (e) => { 
+                e.preventDefault(); 
+                keys[keyName] = true; 
+                if(keyName === 'Up' && player.isGrounded) jump();
+            });
+            btn.addEventListener('touchend', (e) => { 
+                e.preventDefault(); 
+                keys[keyName] = false; 
+            });
+        };
+        bindTouch('btn-left', 'Left');
+        bindTouch('btn-right', 'Right');
+        bindTouch('btn-jump', 'Up');
+
+        function jump() {
+            player.vy = player.jumpForce;
+            player.isGrounded = false;
+        }
+
+        // 4. Lógica de Trivia
+        const questionsDb = [
+            { q: "5 + 7 =", a: "12", f: ["10", "14", "13", "11"] },
+            { q: "Capital de Francia", a: "París", f: ["Londres", "Roma", "Madrid", "Berlín"] },
+            { q: "¿Color del cielo?", a: "Azul", f: ["Verde", "Rojo", "Amarillo", "Violeta"] },
+            { q: "10 x 4 =", a: "40", f: ["14", "44", "30", "104"] },
+            { q: "Planeta Rojo", a: "Marte", f: ["Venus", "Júpiter", "Mercurio", "Saturno"] },
+            { q: "¿Cuántos lados tiene un hexágono?", a: "6", f: ["5", "7", "8", "4"] },
+            { q: "Continente más grande", a: "Asia", f: ["América", "África", "Europa", "Oceanía"] },
+            { q: "30 ÷ 5 =", a: "6", f: ["5", "7", "4", "8"] }
+        ];
+
+        let answerBoxes = [];
+        let currentCorrectAnswer = "";
+
+        function spawnQuestion() {
+            const qData = questionsDb[Math.floor(Math.random() * questionsDb.length)];
+            currentCorrectAnswer = qData.a;
+            
+            // Dificultad Dinámica: Racha modifica cantidad de opciones
+            const maxOpciones = 5; 
+            const opcionesActuales = Math.min(maxOpciones, 2 + Math.floor(streak / 3));
+            
+            let options = [qData.a];
+            let distractors = [...qData.f].sort(() => Math.random() - 0.5);
+            
+            for (let i = 0; i < opcionesActuales - 1 && i < distractors.length; i++) {
+                options.push(distractors[i]);
+            }
+            options.sort(() => Math.random() - 0.5); // Mezclar
+
+            const questionDisplay = document.getElementById('question-display');
+            questionDisplay.innerText = qData.q;
+            questionDisplay.style.display = 'block';
+
+            answerBoxes = [];
+            const boxWidth = width / options.length; // Ancho sin divisiones
+            const boxHeight = 80; 
+            
+            const fallTimeLimit = 10 / speedMultiplier;
+            const targetY = height - 60 - player.height;
+            const velocity = targetY / fallTimeLimit; 
+
+            options.forEach((opt, index) => {
+                answerBoxes.push({
+                    text: opt,
+                    isCorrect: opt === qData.a,
+                    width: boxWidth,
+                    height: boxHeight,
+                    x: boxWidth * index,
+                    y: -boxHeight, // Empiezan juntas arriba
+                    vy: velocity
+                });
+            });
+
+            timeLeft = Math.ceil(fallTimeLimit);
+            updateUI();
+        }
+
+        function handleAnswer(isCorrect) {
+            if (!isPlaying) return;
+            if (isCorrect) {
+                streak++;
+                // Cap de velocidad a 2.0 (100% extra)
+                speedMultiplier = Math.min(2.0, 1.0 + (streak * 0.1));
+                flashScreen('rgba(46, 204, 113, 0.5)'); // Destello Verde
+                player.speed = basePlayerSpeed * speedMultiplier;
+                spawnQuestion();
+            } else {
+                streak = 0;
+                speedMultiplier = 1.0;
+                player.speed = basePlayerSpeed;
+                
+                // Reposicionar al personaje en el centro y abajo instantaneamente al fallar
+                player.width = 60;
+                player.height = 60;
+                player.x = width / 2 - player.width / 2;
+                player.y = height - 60 - player.height;
+                player.vx = 0;
+                player.vy = 0;
+                player.isGrounded = true;
+                
+                isPlaying = false;
+                const flash = document.getElementById('flash');
+                flash.style.backgroundColor = 'rgba(231, 76, 60, 0.9)';
+                flash.style.opacity = '1';
+                flash.style.pointerEvents = 'auto';
+                flash.innerHTML = `<div style="position: absolute; top:50%; width:100%; text-align:center; transform: translateY(-50%); font-size: 2rem; font-weight: bold; color: white;">
+                    ¡Incorrecto!<br><br>La respuesta era:<br><span style="color:#FFD700">${currentCorrectAnswer}</span>
+                </div>`;
+                
+                setTimeout(() => {
+                    flash.style.opacity = '0';
+                    flash.innerHTML = '';
+                    flash.style.pointerEvents = 'none';
+                    lastTime = performance.now();
+                    isPlaying = true;
+                    spawnQuestion();
+                }, 5000);
+            }
+        }
+
+        function flashScreen(color) {
+            const flash = document.getElementById('flash');
+            flash.style.backgroundColor = color;
+            flash.style.opacity = '1';
+            setTimeout(() => { flash.style.opacity = '0'; }, 250);
+        }
+
+        function updateUI() {
+            document.getElementById('streak-display').innerText = streak;
+            document.getElementById('time-display').innerText = timeLeft;
+            document.getElementById('speed-display').innerText = speedMultiplier.toFixed(1);
+        }
+
+        function startGame() {
+            document.getElementById('start-screen').style.display = 'none';
+            player.y = height / 2;
+            player.x = width / 2;
+            player.vy = 0;
+            streak = 0;
+            speedMultiplier = 1.0;
+            player.speed = basePlayerSpeed;
+            isPlaying = true;
+            lastTime = performance.now();
+            
+            spawnQuestion();
+            
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if (isPlaying) {
+                    timeLeft--;
+                    updateUI();
+                    if (timeLeft <= 0) {
+                        handleAnswer(false); // Timeout = Respuesta Incorrecta
+                    }
+                }
+            }, 1000);
+
+            requestAnimationFrame(update);
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+
+        // 5. Game Loop & Física
+        function update(currentTime) {
+            if (!isPlaying) {
+                lastTime = currentTime;
+                render(); // Seguir dibujando para ver el personaje en su posición reiniciada
+                requestAnimationFrame(update);
+                return;
+            }
+            const dt = Math.min((currentTime - lastTime) / 1000, 0.1); // Cap a 0.1s para evitar saltos locos al cambiar de pestaña
+            lastTime = currentTime;
+
+            // Movimiento lateral
+            if (keys.Left) player.vx = -player.speed;
+            else if (keys.Right) player.vx = player.speed;
+            else {
+                // Fricción rápida
+                player.vx *= 0.8;
+                if(Math.abs(player.vx) < 10) player.vx = 0;
+            }
+
+            let lastY = player.y;
+            
+            player.vy += player.gravity * dt;
+            player.x += player.vx * dt;
+            player.y += player.vy * dt;
+
+            // Límites laterales de la pantalla
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > width) player.x = width - player.width;
+
+            // Colisión con Plataformas
+            player.isGrounded = false;
+            platforms.forEach(plat => {
+                // Check solo si va cayendo
+                if (player.vy > 0) {
+                    // Está sobre la plataforma horizontalmente?
+                    if (player.x + player.width > plat.x && player.x < plat.x + plat.width) {
+                        // Atravesó la parte superior de la plataforma en este frame?
+                        if (lastY + player.height <= plat.y && player.y + player.height >= plat.y) {
+                            player.y = plat.y - player.height;
+                            player.vy = 0;
+                            player.isGrounded = true;
+                        }
+                    }
+                }
+            });
+
+            // Actualizar Cajas de Respuestas
+            let answeredThisFrame = false;
+            answerBoxes.forEach(box => {
+                // Aceleración de caída
+                box.y += box.vy * dt;
+
+                // Colisión con jugador (AABB)
+                if (
+                    !answeredThisFrame &&
+                    player.x < box.x + box.width &&
+                    player.x + player.width > box.x &&
+                    player.y < box.y + box.height &&
+                    player.y + player.height > box.y
+                ) {
+                    handleAnswer(box.isCorrect);
+                    answeredThisFrame = true;
+                }
+                
+                // El muro no reposa, sigue de largo e impacta al jugador o al suelo
+            });
+
+            render();
+            requestAnimationFrame(update);
+        }
+
+        function render() {
+            // Fondo
+            ctx.clearRect(0, 0, width, height);
+
+            // Plataformas
+            platforms.forEach(plat => {
+                ctx.fillStyle = plat.color;
+                ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(plat.x, plat.y, plat.width, plat.height);
+            });
+
+            // Jugador (Bloque Celeste)
+            ctx.fillStyle = '#00AEEF';
+            ctx.beginPath();
+            ctx.roundRect(player.x, player.y, player.width, player.height, 5);
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Cajas de Respuestas
+            answerBoxes.forEach(box => {
+                // Sombra
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                ctx.fillRect(box.x + 4, box.y + 4, box.width, box.height);
+
+                // Caja
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(box.x, box.y, box.width, box.height);
+                
+                // Borde
+                ctx.strokeStyle = '#00AEEF';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(box.x, box.y, box.width, box.height);
+                
+                // Texto
+                ctx.fillStyle = '#000';
+                ctx.font = 'bold 18px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                // Ajustar texto si es muy largo
+                if (box.text.length > 8) ctx.font = 'bold 14px Arial';
+                ctx.fillText(box.text, box.x + box.width / 2, box.y + box.height / 2);
+            });
+        }
+    </script>
+</body>
+</html>
