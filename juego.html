@@ -1,587 +1,789 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Trivia con Acción</title>
+    <title>Trivia Runner Mobile</title>
     <style>
-        * {
-            box-sizing: border-box;
-            touch-action: none; /* Previene scroll y zoom en móvil */
-            user-select: none;
+        :root {
+            --primary: #FF5252;
+            --secondary: #4CAF50;
+            --accent: #FF9800;
+            --dark: #A5D6A7;
+            --bg-light: #FFF3E0;
+            --text: #333333;
         }
-        body, html {
+
+        html,
+        body {
             margin: 0;
             padding: 0;
             width: 100%;
             height: 100%;
-            background-color: #121212;
-            color: #ffffff;
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #000;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
         }
-        #game-container {
+
+        #app {
             position: relative;
             width: 100%;
             height: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+            background: linear-gradient(180deg, var(--dark) 0%, var(--bg-light) 100%);
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
         }
-        canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-        }
-        #ui-layer {
+
+        #track {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            pointer-events: none;
+            background-image:
+                linear-gradient(0deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: 1;
+        }
+
+        #hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
             display: flex;
-            flex-direction: column;
             justify-content: space-between;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+            z-index: 10;
+            font-weight: bold;
+            color: var(--text);
+            font-size: 14px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        #question-bubble {
+            position: absolute;
+            top: 70px;
+            left: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            color: #333;
+            padding: 15px 20px;
+            border-radius: 20px;
+            text-align: center;
+            font-size: 1.1rem;
+            font-weight: 800;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+            transform: translateY(-50px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        #question-bubble.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        #wall {
+            position: absolute;
+            width: 100%;
+            height: 120px;
+            display: flex;
+            gap: 8px;
+            padding: 10px;
+            box-sizing: border-box;
             z-index: 2;
         }
-        #top-bar {
-            padding: 10px 20px;
-            display: flex;
-            justify-content: space-between;
-            font-size: 1.2rem;
-            font-weight: bold;
-            background: rgba(0, 0, 0, 0.7);
-            border-bottom: 2px solid #00AEEF;
-            text-shadow: 1px 1px 2px black;
-        }
-        .stat-box { display: flex; flex-direction: column; align-items: center; }
-        .stat-label { font-size: 0.8rem; color: #aaa; }
-        
-        #question-display {
-            position: absolute;
-            top: 80px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 174, 239, 0.9);
-            padding: 15px 25px;
-            border-radius: 12px;
-            border: 2px solid #fff;
-            text-align: center;
-            font-size: 1.4rem;
-            font-weight: bold;
-            width: 85%;
-            max-width: 600px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            display: none;
-            pointer-events: none;
-        }
 
-        #d-pad {
-            display: none;
-            position: absolute;
-            bottom: 30px;
-            left: 0;
-            width: 100%;
-            padding: 0 20px;
-            justify-content: space-between;
-            pointer-events: auto;
-        }
-        @media (hover: none) and (pointer: coarse) {
-            #d-pad {
-                display: flex;
-            }
-        }
-        
-        .d-btn {
-            background: rgba(0, 174, 239, 0.3);
-            border: 2px solid rgba(0, 174, 239, 0.8);
-            border-radius: 50%;
-            width: 70px;
-            height: 70px;
-            color: white;
-            font-size: 30px;
+        .door {
+            flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-        }
-        .d-btn:active {
-            background: rgba(0, 174, 239, 0.7);
-            transform: scale(0.95);
-        }
-        .directional-btns {
-            display: flex;
-            gap: 15px;
+            font-size: 1.3rem;
+            font-weight: 900;
+            text-align: center;
+            padding: 10px;
+            color: white;
+            border-radius: 20px;
+            border: 4px solid rgba(255, 255, 255, 0.4);
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.2), 0 8px 0 rgba(0, 0, 0, 0.3);
+            transition: transform 0.1s, box-shadow 0.1s;
+            word-wrap: break-word;
+            word-break: break-word;
+            hyphens: auto;
+            line-height: 1.1;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        #start-screen {
+        .door:active {
+            transform: translateY(6px);
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.2), 0 2px 0 rgba(0, 0, 0, 0.3);
+        }
+
+        .door-0 {
+            background: linear-gradient(135deg, #FF416C, #FF4B2B);
+            border-color: #B22D4B;
+        }
+
+        .door-1 {
+            background: linear-gradient(135deg, #4776E6, #8E54E9);
+            border-color: #3152A0;
+        }
+
+        .door-2 {
+            background: linear-gradient(135deg, #00B4DB, #0083B0);
+            border-color: #006b8f;
+        }
+
+        .door-open {
+            opacity: 0.2;
+            transform: scale(0.9);
+            border-color: var(--secondary);
+        }
+
+        .door-wrong {
+            background: #000 !important;
+            color: var(--primary) !important;
+            border-color: var(--primary) !important;
+            transform: scale(0.9);
+        }
+
+        #player {
             position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(18, 18, 18, 0.95);
+            bottom: 140px;
+            width: 50px;
+            height: 50px;
+            text-align: center;
+            z-index: 3;
+        }
+
+        #player-sprite {
+            display: inline-block;
+            font-size: 45px;
+            line-height: 50px;
+            filter: drop-shadow(0 10px 5px rgba(0, 0, 0, 0.5));
+            animation: bounce 0.4s infinite alternate;
+        }
+
+        @keyframes bounce {
+            from {
+                transform: translateY(0);
+            }
+
+            to {
+                transform: translateY(-10px);
+            }
+        }
+
+        .btn-3d {
+            border: none;
+            color: white;
+            font-weight: 900;
+            border-radius: 15px;
+            text-transform: uppercase;
+            transition: all 0.1s;
+            cursor: pointer;
+            outline: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .btn-3d:active {
+            transform: translateY(6px);
+        }
+
+        #feedback {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(5px);
+            z-index: 20;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #feedback h1 {
+            font-size: 2.2rem;
+            margin: 0;
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        #feedback.success h1 {
+            color: var(--secondary);
+            text-shadow: 0 0 20px rgba(0, 230, 118, 0.5);
+        }
+
+        #feedback.error h1 {
+            color: var(--primary);
+            text-shadow: 0 0 20px rgba(255, 23, 68, 0.5);
+        }
+
+        @keyframes popIn {
+            0% {
+                transform: scale(0.5);
+                opacity: 0;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--dark);
+            z-index: 30;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            z-index: 100;
-            pointer-events: auto;
             text-align: center;
-            padding: 20px;
-        }
-        #start-screen h1 {
-            color: #00AEEF;
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-            text-shadow: 0 0 10px rgba(0, 174, 239, 0.5);
-        }
-        #qr-container {
-            margin: 25px 0;
-            background: white;
-            padding: 15px;
-            border-radius: 15px;
-            box-shadow: 0 0 20px rgba(0, 174, 239, 0.4);
-        }
-        #qr-container img {
-            display: block;
-        }
-        #start-btn {
-            padding: 15px 40px;
-            font-size: 1.5rem;
-            font-weight: bold;
-            background: #00AEEF;
             color: white;
-            border: none;
-            border-radius: 30px;
-            cursor: pointer;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-            transition: transform 0.1s;
-        }
-        #start-btn:active {
-            transform: scale(0.95);
-        }
-        .instructions {
-            color: #aaa;
-            max-width: 400px;
-            margin: 15px 0;
-            line-height: 1.5;
+            padding: 20px;
+            box-sizing: border-box;
         }
 
-        #flash {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            opacity: 0;
-            pointer-events: none;
-            z-index: 50;
-            transition: opacity 0.3s ease-out;
+        .screen h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            color: var(--accent);
+        }
+
+        .screen p {
+            font-size: 1.2rem;
+            opacity: 0.8;
+            margin-bottom: 30px;
+        }
+
+        .btn-action {
+            background-color: var(--secondary);
+            border: 4px solid #388E3C;
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            box-shadow: 0 6px 0 #388E3C, 0 10px 15px rgba(0, 0, 0, 0.4);
+        }
+
+        .btn-action:active {
+            box-shadow: 0 0 0 #388E3C, 0 4px 5px rgba(0, 0, 0, 0.4);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .streak-active {
+            color: #FFD600 !important;
+            text-shadow: 0 0 10px #FFD600;
+            animation: pulse 0.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.2);
+            }
+
+            100% {
+                transform: scale(1);
+            }
         }
     </style>
 </head>
+
 <body>
-    <div id="game-container">
-        <canvas id="game-canvas"></canvas>
-        <div id="ui-layer">
-            <div id="top-bar">
-                <div class="stat-box">
-                    <span class="stat-label">Racha</span>
-                    <span id="streak-display">0</span>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-label">Tiempo (s)</span>
-                    <span id="time-display" style="color: #ff5555;">10</span>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-label">Velocidad</span>
-                    <span>x<span id="speed-display">1.0</span></span>
-                </div>
-            </div>
-            <div id="question-display"></div>
-            <div id="d-pad">
-                <div class="directional-btns">
-                    <div class="d-btn" id="btn-left">◀</div>
-                    <div class="d-btn" id="btn-right">▶</div>
-                </div>
-                <div class="d-btn" id="btn-jump">▲</div>
-            </div>
+    <div id="app">
+        <div id="track"></div>
+
+        <div id="hud">
+            <div class="stat health-stat">❤️ <span id="health-val">100</span>%</div>
+            <div class="stat speed-stat">⚡ <span id="speed-val">100</span>%</div>
+            <div class="stat streak-stat">🔥 <span id="streak-val">0</span></div>
+            <div class="stat time-stat">⏱️ <span id="time-val">--</span></div>
+            <div class="stat q-stat">📝 <span id="q-val">1</span>/50</div>
         </div>
-        <div id="flash"></div>
-        <div id="start-screen">
-            <h1>Trivia con Acción</h1>
-            <div class="instructions">
-                <b>Instrucciones:</b><br><br>
-                ¡Mueve al personaje celeste y <b>choca</b> contra la caja con la respuesta correcta antes de los 10s!<br><br>
-                Móvil: Usa los botones debajo<br>
-                PC: Usa las flechas del teclado
-            </div>
-            <!-- QR temporalmente removido
-            <div id="qr-container">
-                <img id="qr-code" src="" alt="Código QR" width="150" height="150">
-            </div>
-            <p class="stat-label">¡Escanea para compartir el juego!</p>
-            -->
-            <button id="start-btn">JUGAR</button>
+
+        <div id="question-bubble"><span id="q-text">Pregunta</span></div>
+
+        <div id="wall"></div>
+
+        <!-- Player Emoji -->
+        <div id="player"><span id="player-sprite">🏃‍♂️</span></div>
+
+        <div id="feedback"></div>
+
+        <!-- Pantallas -->
+        <div id="start-screen" class="screen">
+            <h1>Trivia Runner</h1>
+            <p>Llega lo más lejos posible respondiendo correctamente. ¡Cuidado con los errores!</p>
+            <button class="btn-3d btn-action" id="btn-start">EMPEZAR</button>
+        </div>
+
+        <div id="game-over-screen" class="screen hidden">
+            <h1 style="color: var(--primary);">¡Fin del Juego!</h1>
+            <p>Te quedaste sin vida.<br>Preguntas superadas: <span id="final-score">0</span>/50</p>
+            <button class="btn-3d btn-action" id="btn-restart">REINTENTAR</button>
+        </div>
+
+        <div id="win-screen" class="screen hidden">
+            <h1 style="color: var(--secondary);">¡Victoria!</h1>
+            <p>¡Eres un genio! Completaste las 50 preguntas de cultura general.</p>
+            <button class="btn-3d btn-action" id="btn-win-restart">JUGAR DE NUEVO</button>
         </div>
     </div>
 
     <script>
-        /* 1. Configuración de Acceso / Generación QR (Temporalmente removido)
-        window.addEventListener('DOMContentLoaded', () => {
-            const qrImage = document.getElementById('qr-code');
-            const currentUrl = encodeURIComponent(window.location.href.split('#')[0].split('?')[0]);
-            qrImage.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${currentUrl}`;
-        });
-        */
-
-        // 2. Configuración Core de Canvas
-        const canvas = document.getElementById('game-canvas');
-        const ctx = canvas.getContext('2d');
-        let width, height;
-
-        // Plataformas Sólidas
-        let platforms = [];
-
-        function resize() {
-            width = window.innerWidth;
-            height = window.innerHeight;
-            canvas.width = width;
-            canvas.height = height;
-
-            // Recalcular plataformas según el ancho/alto (solo suelo, eliminadas las extra)
-            platforms = [
-                { x: 0, y: height - 60, width: width, height: 60, color: '#333' }
-            ];
-            
-            try {
-                if(player.y > height) player.y = height - 100; // Seguridad
-            } catch(e) {} // Previene error de ReferenceError antes de inicializarse jugador
-        }
-        window.addEventListener('resize', resize);
-        resize();
-
-        // 3. Variables y Estado de Juego
-        let isPlaying = false;
-        let lastTime = 0;
-        
-        let streak = 0;
-        let speedMultiplier = 1.0;
-        let timeLeft = 10;
-        let timerInterval;
-
-        // Jugador (Personaje Celeste)
-        const basePlayerSpeed = 500; // Más rápido
-        const player = {
-            width: 60, // Más grande para chocar más fácil
-            height: 60,
-            x: width / 2 - 30,
-            y: 0,
-            vx: 0,
-            vy: 0,
-            speed: basePlayerSpeed,
-            jumpForce: -900, // Salto más alto y potente para alcanzar plataformas fácil
-            gravity: 1800,
-            isGrounded: false
-        };
-
-        // Entradas (Teclado y Táctil)
-        const keys = { Left: false, Right: false, Up: false };
-
-        window.addEventListener('keydown', e => {
-            if (e.code === 'ArrowLeft') keys.Left = true;
-            if (e.code === 'ArrowRight') keys.Right = true;
-            if (e.code === 'ArrowUp' || e.code === 'Space') {
-                keys.Up = true;
-                if (player.isGrounded) jump();
-            }
-        });
-        window.addEventListener('keyup', e => {
-            if (e.code === 'ArrowLeft') keys.Left = false;
-            if (e.code === 'ArrowRight') keys.Right = false;
-            if (e.code === 'ArrowUp' || e.code === 'Space') keys.Up = false;
-        });
-
-        // Controles D-Pad
-        const bindTouch = (id, keyName) => {
-            const btn = document.getElementById(id);
-            btn.addEventListener('touchstart', (e) => { 
-                e.preventDefault(); 
-                keys[keyName] = true; 
-                if(keyName === 'Up' && player.isGrounded) jump();
-            });
-            btn.addEventListener('touchend', (e) => { 
-                e.preventDefault(); 
-                keys[keyName] = false; 
-            });
-        };
-        bindTouch('btn-left', 'Left');
-        bindTouch('btn-right', 'Right');
-        bindTouch('btn-jump', 'Up');
-
-        function jump() {
-            player.vy = player.jumpForce;
-            player.isGrounded = false;
-        }
-
-        // 4. Lógica de Trivia
-        const questionsDb = [
-            { q: "5 + 7 =", a: "12", f: ["10", "14", "13", "11"] },
-            { q: "Capital de Francia", a: "París", f: ["Londres", "Roma", "Madrid", "Berlín"] },
-            { q: "¿Color del cielo?", a: "Azul", f: ["Verde", "Rojo", "Amarillo", "Violeta"] },
-            { q: "10 x 4 =", a: "40", f: ["14", "44", "30", "104"] },
-            { q: "Planeta Rojo", a: "Marte", f: ["Venus", "Júpiter", "Mercurio", "Saturno"] },
-            { q: "¿Cuántos lados tiene un hexágono?", a: "6", f: ["5", "7", "8", "4"] },
-            { q: "Continente más grande", a: "Asia", f: ["América", "África", "Europa", "Oceanía"] },
-            { q: "30 ÷ 5 =", a: "6", f: ["5", "7", "4", "8"] }
+        const rawQuestions = [
+            {q: "¿Qué es la celiaquía?", a: ["Una intolerancia al gluten", "Una alergia al azúcar", "Un resfrío"], c: 0},
+            {q: "¿Qué es el gluten?", a: ["Una proteína", "Una vitamina", "Un mineral"], c: 0},
+            {q: "¿Qué cereales tienen gluten?", a: ["Trigo, avena, cebada, centeno", "Maíz y arroz", "Soja y quinoa"], c: 0},
+            {q: "¿Qué significa la sigla sin TACC?", a: ["Sin Trigo, Avena, Cebada, Centeno", "Sin Tomate, Arroz, Carne", "Todo Alimento Con Calorías"], c: 0},
+            {q: "¿Cuál es el tratamiento de la celiaquía?", a: ["Dieta sin gluten", "Tomar pastillas", "Comer más frutas"], c: 0},
+            {q: "¿Qué parte del cuerpo daña el gluten en un celíaco?", a: ["Intestino delgado", "Los pulmones", "El estómago"], c: 0},
+            {q: "¿El arroz es seguro para celíacos?", a: ["Sí, no tiene gluten", "No, tiene mucho gluten", "Solo si está cocido"], c: 0},
+            {q: "¿El maíz o choclo tiene gluten?", a: ["No, es apto", "Sí, no se puede comer", "Solo el pochoclo"], c: 0},
+            {q: "¿Se puede usar la misma tostadora para pan normal y sin TACC?", a: ["No, por contaminación", "Sí, no pasa nada", "Solo si se limpia rápido"], c: 0},
+            {q: "¿Qué es la contaminación cruzada?", a: ["Mezclar algo sin gluten con gluten", "Cruzar la calle con comida", "Mezclar dulce con salado"], c: 0},
+            {q: "¿Cómo sabemos si un producto envasado es apto?", a: ["Buscando el logo oficial", "Si el paquete es verde", "Si es muy caro"], c: 0},
+            {q: "¿La fruta natural tiene gluten?", a: ["No, nunca", "Sí, algunas", "Solo la manzana"], c: 0},
+            {q: "¿Las verduras frescas tienen gluten?", a: ["No, son seguras", "Sí, las de hojas verdes", "Solo la papa"], c: 0},
+            {q: "¿La carne cruda de carnicería tiene gluten?", a: ["No, es libre de gluten", "Sí, toda la carne", "Solo el pollo"], c: 0},
+            {q: "¿Los huevos de gallina tienen gluten?", a: ["No, son aptos", "Sí, la yema", "Solo si son de granja"], c: 0},
+            {q: "¿El agua pura contiene gluten?", a: ["No", "Sí", "A veces"], c: 0},
+            {q: "¿Qué pasa si un celíaco come una miguita de pan?", a: ["Daña su intestino", "No pasa nada", "Solo le da sed"], c: 0},
+            {q: "¿La leche de vaca natural tiene gluten?", a: ["No", "Sí", "Solo la descremada"], c: 0},
+            {q: "¿Puedo freír papas en el aceite de milanesas de trigo?", a: ["No, el aceite está contaminado", "Sí, el fuego mata el gluten", "Solo si quedan pocas migas"], c: 0},
+            {q: "¿El pan de panadería tradicional es apto para celíacos?", a: ["No, usa harina de trigo", "Sí, si le quitas la corteza", "Solo si es pan integral"], c: 0},
+            {q: "¿Qué harina pueden usar tranquilos los celíacos?", a: ["Harina de arroz o maíz", "Harina de trigo", "Harina de centeno"], c: 0},
+            {q: "¿Los fideos comunes de paquete tienen gluten?", a: ["Sí, son de trigo", "No, son seguros", "Solo los de colores"], c: 0},
+            {q: "¿Qué es el símbolo internacional del celíaco?", a: ["Espiga de trigo tachada", "Un círculo rojo", "Una manzana verde"], c: 0},
+            {q: "¿Si tengo dudas sobre un alimento, qué debo hacer?", a: ["No comerlo y preguntar", "Comer un poco a ver qué pasa", "Comerlo con agua"], c: 0},
+            {q: "¿Se cura la celiaquía con la edad?", a: ["No, es para toda la vida", "Sí, a los 18 años", "Sí, si comes sano"], c: 0},
+            {q: "¿Puedo compartir vaso con alguien que comió galletas con gluten?", a: ["No, quedan restos en el vaso", "Sí, el agua lo lava", "Solo si uso pajita"], c: 0},
+            {q: "¿Las nueces naturales en su cáscara tienen gluten?", a: ["No, son seguras", "Sí, tienen mucho gluten", "Solo el maní"], c: 0},
+            {q: "¿La avena es segura para los celíacos?", a: ["Solo si tiene logo oficial", "Sí, siempre", "Solo en el desayuno"], c: 0},
+            {q: "¿Puedo usar la misma cuchara para fideos con y sin gluten?", a: ["No, se contamina", "Sí, si la sacudo bien", "Solo si es de madera"], c: 0},
+            {q: "¿La celiaquía es contagiosa?", a: ["No", "Sí, por toser", "Sí, por tocarse"], c: 0},
+            {q: "¿El azúcar puro tiene gluten?", a: ["No", "Sí", "Solo la rubia"], c: 0},
+            {q: "¿La sal de mesa común y natural tiene gluten?", a: ["No", "Sí", "Depende de la marca"], c: 0},
+            {q: "¿Qué debe hacer un restaurante para hacer comida sin gluten?", a: ["Tener utensilios separados", "Cocinar más rápido", "Cobrar más caro"], c: 0},
+            {q: "¿Las lentejas naturales tienen gluten?", a: ["No", "Sí", "Solo las rojas"], c: 0},
+            {q: "¿El tomate fresco tiene gluten?", a: ["No", "Sí", "Solo en salsa"], c: 0},
+            {q: "¿Un celíaco puede comer caramelos sueltos de un kiosco?", a: ["Mejor no, por la contaminación", "Sí, todos", "Solo los de fresa"], c: 0},
+            {q: "¿La yerba mate necesita logo Sin TACC?", a: ["Sí, por riesgo en el envasado", "No, es una planta", "Solo si es con palo"], c: 0},
+            {q: "¿El aceite de oliva natural tiene gluten?", a: ["No", "Sí", "A veces"], c: 0},
+            {q: "¿Un niño celíaco puede usar plastilinas comunes?", a: ["Mejor usar certificadas", "Sí, cualquiera", "No, no pueden jugar"], c: 0},
+            {q: "¿La miel pura de abejas tiene gluten?", a: ["No", "Sí", "Solo en invierno"], c: 0},
+            {q: "¿El pescado fresco natural tiene gluten?", a: ["No", "Sí, por las escamas", "Solo de río"], c: 0},
+            {q: "¿Se pueden hacer pizzas ricas sin gluten?", a: ["Sí, con premezclas sin TACC", "No, es imposible", "Solo cuadradas"], c: 0},
+            {q: "¿Es importante lavarse las manos antes de cocinar sin gluten?", a: ["Sí, es fundamental", "No hace falta", "Solo si tocaste tierra"], c: 0},
+            {q: "¿Puedo guardar pan normal arriba del pan sin gluten?", a: ["No, pueden caer migas", "Sí, si está cerrado", "Solo en verano"], c: 0},
+            {q: "¿Se puede compartir mate si el otro come facturas con trigo?", a: ["Mejor no, por la bombilla", "Sí, no pasa nada", "Solo con agua muy caliente"], c: 0},
+            {q: "¿Qué significa si un paquete dice 'puede contener trazas de gluten'?", a: ["Que NO es apto para celíacos", "Que se puede comer un poco", "Que es muy sano"], c: 0},
+            {q: "¿La cerveza tradicional de cebada tiene gluten?", a: ["Sí, tiene gluten", "No, es líquida", "Solo la oscura"], c: 0},
+            {q: "¿Hay galletitas de chocolate aptas para celíacos?", a: ["Sí, con logo oficial", "No, el chocolate tiene gluten", "Solo de vainilla"], c: 0},
+            {q: "¿Un celíaco puede ir a un cumpleaños?", a: ["Sí, llevando su propia comida", "No, nunca", "Sí, y comer de todo"], c: 0},
+            {q: "¿Si como sin gluten siendo celíaco mi vida es normal?", a: ["Sí, totalmente sana", "No, estaré siempre débil", "Solo si no hago deporte"], c: 0}
         ];
 
-        let answerBoxes = [];
-        let currentCorrectAnswer = "";
+        let questions = [];
+        let currentQIndex = 0;
+        let health = 100;
+        let speed = 100;
+        let streak = 0;
+        let baseSpeed = 300; // píxeles por segundo
+        let isMoving = false;
+        let questionAnswered = false;
+        let wallY = -200;
+        let playerTargetX = 0;
+        let playerCurrentX = 0;
+        let playerTargetY = 0;
+        let playerCurrentY = 0;
+        let bgPos = 0;
+        let lastTime = 0;
+        let gameState = 'start';
 
-        function spawnQuestion() {
-            const qData = questionsDb[Math.floor(Math.random() * questionsDb.length)];
-            currentCorrectAnswer = qData.a;
-            
-            // Dificultad Dinámica: Racha modifica cantidad de opciones
-            const maxOpciones = 5; 
-            const opcionesActuales = Math.min(maxOpciones, 2 + Math.floor(streak / 3));
-            
-            let options = [qData.a];
-            let distractors = [...qData.f].sort(() => Math.random() - 0.5);
-            
-            for (let i = 0; i < opcionesActuales - 1 && i < distractors.length; i++) {
-                options.push(distractors[i]);
-            }
-            options.sort(() => Math.random() - 0.5); // Mezclar
+        let currentQuestion = null;
+        let options = [];
 
-            const questionDisplay = document.getElementById('question-display');
-            questionDisplay.innerText = qData.q;
-            questionDisplay.style.display = 'block';
+        let questionTimer = null;
+        let timeLeft = 25;
 
-            answerBoxes = [];
-            const boxWidth = width / options.length; // Ancho sin divisiones
-            const boxHeight = 80; 
-            
-            const fallTimeLimit = 10 / speedMultiplier;
-            const targetY = height - 60 - player.height;
-            const velocity = targetY / fallTimeLimit; 
+        // Elements
+        const app = document.getElementById('app');
+        const wall = document.getElementById('wall');
+        const player = document.getElementById('player');
+        const track = document.getElementById('track');
+        const feedbackDiv = document.getElementById('feedback');
 
-            options.forEach((opt, index) => {
-                answerBoxes.push({
-                    text: opt,
-                    isCorrect: opt === qData.a,
-                    width: boxWidth,
-                    height: boxHeight,
-                    x: boxWidth * index,
-                    y: -boxHeight, // Empiezan juntas arriba
-                    vy: velocity
-                });
+        window.onload = () => {
+            document.getElementById('btn-start').onclick = startGame;
+            document.getElementById('btn-restart').onclick = startGame;
+            document.getElementById('btn-win-restart').onclick = startGame;
+
+            // Center player initially
+            playerCurrentX = app.offsetWidth / 2 - 25;
+            playerTargetX = playerCurrentX;
+            updatePlayerPos();
+
+            // Touch & Drag Controls
+            let touchStartY = 0;
+            let isSwiping = false;
+
+            const handleMove = (x) => {
+                if (gameState !== 'playing') return;
+                if (isMoving) return; // Solo cuando está detenido
+                let appRect = app.getBoundingClientRect();
+                let relativeX = x - appRect.left;
+                playerTargetX = relativeX - 25;
+                let max = app.offsetWidth - 50;
+                if (playerTargetX < 0) playerTargetX = 0;
+                if (playerTargetX > max) playerTargetX = max;
+            };
+
+            app.addEventListener('pointerdown', (e) => {
+                if (gameState !== 'playing') return;
+                if (e.isPrimary) {
+                    app.setPointerCapture(e.pointerId);
+                    touchStartY = e.clientY;
+                    isSwiping = true;
+                    handleMove(e.clientX);
+                }
             });
 
-            timeLeft = Math.ceil(fallTimeLimit);
-            updateUI();
-        }
+            app.addEventListener('pointermove', (e) => {
+                if (e.buttons === 1 && isSwiping) {
+                    handleMove(e.clientX);
 
-        function handleAnswer(isCorrect) {
-            if (!isPlaying) return;
-            if (isCorrect) {
-                streak++;
-                // Cap de velocidad a 2.0 (100% extra)
-                speedMultiplier = Math.min(2.0, 1.0 + (streak * 0.1));
-                flashScreen('rgba(46, 204, 113, 0.5)'); // Destello Verde
-                player.speed = basePlayerSpeed * speedMultiplier;
-                spawnQuestion();
-            } else {
-                streak = 0;
-                speedMultiplier = 1.0;
-                player.speed = basePlayerSpeed;
-                
-                // Reposicionar al personaje en el centro y abajo instantaneamente al fallar
-                player.width = 60;
-                player.height = 60;
-                player.x = width / 2 - player.width / 2;
-                player.y = height - 60 - player.height;
-                player.vx = 0;
-                player.vy = 0;
-                player.isGrounded = true;
-                
-                isPlaying = false;
-                const flash = document.getElementById('flash');
-                flash.style.backgroundColor = 'rgba(231, 76, 60, 0.9)';
-                flash.style.opacity = '1';
-                flash.style.pointerEvents = 'auto';
-                flash.innerHTML = `<div style="position: absolute; top:50%; width:100%; text-align:center; transform: translateY(-50%); font-size: 2rem; font-weight: bold; color: white;">
-                    ¡Incorrecto!<br><br>La respuesta era:<br><span style="color:#FFD700">${currentCorrectAnswer}</span>
-                </div>`;
-                
-                setTimeout(() => {
-                    flash.style.opacity = '0';
-                    flash.innerHTML = '';
-                    flash.style.pointerEvents = 'none';
-                    lastTime = performance.now();
-                    isPlaying = true;
-                    spawnQuestion();
-                }, 5000);
-            }
-        }
+                    let deltaY = e.clientY - touchStartY;
+                    if (deltaY < -40 && !isMoving && !questionAnswered && gameState === 'playing') {
+                        isSwiping = false; // Trigger Swipe Up Confirm
+                        confirmSelection();
+                    }
+                }
+            });
 
-        function flashScreen(color) {
-            const flash = document.getElementById('flash');
-            flash.style.backgroundColor = color;
-            flash.style.opacity = '1';
-            setTimeout(() => { flash.style.opacity = '0'; }, 250);
-        }
+            app.addEventListener('pointerup', () => {
+                isSwiping = false;
+            });
 
-        function updateUI() {
-            document.getElementById('streak-display').innerText = streak;
-            document.getElementById('time-display').innerText = timeLeft;
-            document.getElementById('speed-display').innerText = speedMultiplier.toFixed(1);
-        }
+            // Prevent default to ensure clean touch gestures
+            app.addEventListener('touchmove', (e) => {
+                if (e.cancelable) e.preventDefault();
+            }, { passive: false });
+
+            requestAnimationFrame(loop);
+        };
 
         function startGame() {
-            document.getElementById('start-screen').style.display = 'none';
-            player.y = height / 2;
-            player.x = width / 2;
-            player.vy = 0;
-            streak = 0;
-            speedMultiplier = 1.0;
-            player.speed = basePlayerSpeed;
-            isPlaying = true;
-            lastTime = performance.now();
-            
-            spawnQuestion();
-            
-            clearInterval(timerInterval);
-            timerInterval = setInterval(() => {
-                if (isPlaying) {
-                    timeLeft--;
-                    updateUI();
-                    if (timeLeft <= 0) {
-                        handleAnswer(false); // Timeout = Respuesta Incorrecta
-                    }
-                }
-            }, 1000);
+            // Mezclar 50 preguntas
+            questions = rawQuestions.map(q => {
+                const correctAns = q.a[q.c];
+                const incorrectAns = q.a.filter((_, idx) => idx !== q.c);
+                return {
+                    q: q.q,
+                    correct: correctAns,
+                    incorrect: incorrectAns
+                };
+            }).sort(() => Math.random() - 0.5);
 
-            requestAnimationFrame(update);
+            currentQIndex = 0;
+            health = 100;
+            speed = 100;
+            streak = 0;
+            playerTargetY = 0;
+            playerCurrentY = 0;
+            bgPos = 0;
+            gameState = 'playing';
+
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            document.getElementById('win-screen').classList.add('hidden');
+
+            updateHUD();
+            prepareNextQuestion();
+            isMoving = true;
+            lastTime = performance.now();
         }
 
-        document.getElementById('start-btn').addEventListener('click', startGame);
-
-        // 5. Game Loop & Física
-        function update(currentTime) {
-            if (!isPlaying) {
-                lastTime = currentTime;
-                render(); // Seguir dibujando para ver el personaje en su posición reiniciada
-                requestAnimationFrame(update);
+        function prepareNextQuestion() {
+            if (currentQIndex >= 50) {
+                gameState = 'won';
+                document.getElementById('win-screen').classList.remove('hidden');
                 return;
             }
-            const dt = Math.min((currentTime - lastTime) / 1000, 0.1); // Cap a 0.1s para evitar saltos locos al cambiar de pestaña
-            lastTime = currentTime;
 
-            // Movimiento lateral
-            if (keys.Left) player.vx = -player.speed;
-            else if (keys.Right) player.vx = player.speed;
-            else {
-                // Fricción rápida
-                player.vx *= 0.8;
-                if(Math.abs(player.vx) < 10) player.vx = 0;
-            }
+            currentQuestion = questions[currentQIndex];
+            questionAnswered = false;
 
-            let lastY = player.y;
-            
-            player.vy += player.gravity * dt;
-            player.x += player.vx * dt;
-            player.y += player.vy * dt;
+            // Lógica de Puertas Dinámicas: 2 al inicio, 3 si racha >= 3
+            let optionCount = (streak >= 3) ? 3 : 2;
 
-            // Límites laterales de la pantalla
-            if (player.x < 0) player.x = 0;
-            if (player.x + player.width > width) player.x = width - player.width;
+            options = [currentQuestion.correct];
+            let wrongs = [...currentQuestion.incorrect].sort(() => Math.random() - 0.5);
+            options.push(wrongs[0]);
+            if (optionCount === 3) options.push(wrongs[1]);
 
-            // Colisión con Plataformas
-            player.isGrounded = false;
-            platforms.forEach(plat => {
-                // Check solo si va cayendo
-                if (player.vy > 0) {
-                    // Está sobre la plataforma horizontalmente?
-                    if (player.x + player.width > plat.x && player.x < plat.x + plat.width) {
-                        // Atravesó la parte superior de la plataforma en este frame?
-                        if (lastY + player.height <= plat.y && player.y + player.height >= plat.y) {
-                            player.y = plat.y - player.height;
-                            player.vy = 0;
-                            player.isGrounded = true;
-                        }
-                    }
-                }
+            // Mezclar opciones
+            options.sort(() => Math.random() - 0.5);
+
+            // Renderizar pared
+            wall.innerHTML = '';
+            options.forEach((opt, i) => {
+                let door = document.createElement('div');
+                door.className = `door door-${i}`;
+                door.innerText = opt;
+                wall.appendChild(door);
             });
+            document.getElementById('time-val').innerText = '--';
 
-            // Actualizar Cajas de Respuestas
-            let answeredThisFrame = false;
-            answerBoxes.forEach(box => {
-                // Aceleración de caída
-                box.y += box.vy * dt;
+            wallY = -200;
+            wall.style.transform = `translateY(${wallY}px)`;
+            document.getElementById('q-text').innerText = currentQuestion.q;
+            document.getElementById('q-val').innerText = currentQIndex + 1;
 
-                // Colisión con jugador (AABB)
-                if (
-                    !answeredThisFrame &&
-                    player.x < box.x + box.width &&
-                    player.x + player.width > box.x &&
-                    player.y < box.y + box.height &&
-                    player.y + player.height > box.y
-                ) {
-                    handleAnswer(box.isCorrect);
-                    answeredThisFrame = true;
-                }
-                
-                // El muro no reposa, sigue de largo e impacta al jugador o al suelo
-            });
-
-            render();
-            requestAnimationFrame(update);
+            // Reset player target to center
+            playerTargetX = app.offsetWidth / 2 - 25;
+            playerCurrentX = playerTargetX; // Teleport immediately to center
         }
 
-        function render() {
-            // Fondo
-            ctx.clearRect(0, 0, width, height);
+        function loop(time) {
+            if (!lastTime) lastTime = time;
+            let dt = (time - lastTime) / 1000;
+            lastTime = time;
 
-            // Plataformas
-            platforms.forEach(plat => {
-                ctx.fillStyle = plat.color;
-                ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
-                ctx.strokeStyle = '#000';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(plat.x, plat.y, plat.width, plat.height);
-            });
+            if (dt > 0.1) dt = 0.1; // Cap delta time
 
-            // Jugador (Bloque Celeste)
-            ctx.fillStyle = '#00AEEF';
-            ctx.beginPath();
-            ctx.roundRect(player.x, player.y, player.width, player.height, 5);
-            ctx.fill();
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
-            ctx.stroke();
+            if (gameState === 'playing') {
+                if (isMoving) {
+                    player.style.animationPlayState = 'running';
+                    let speedMult = speed / 100;
+                    let actualSpeed = baseSpeed * speedMult * dt;
 
-            // Cajas de Respuestas
-            answerBoxes.forEach(box => {
-                // Sombra
-                ctx.fillStyle = 'rgba(0,0,0,0.5)';
-                ctx.fillRect(box.x + 4, box.y + 4, box.width, box.height);
+                    wallY += actualSpeed;
+                    bgPos += actualSpeed;
+                    track.style.backgroundPositionY = `${bgPos}px`;
 
-                // Caja
-                ctx.fillStyle = '#fff';
-                ctx.fillRect(box.x, box.y, box.width, box.height);
-                
-                // Borde
-                ctx.strokeStyle = '#00AEEF';
-                ctx.lineWidth = 3;
-                ctx.strokeRect(box.x, box.y, box.width, box.height);
-                
-                // Texto
-                ctx.fillStyle = '#000';
-                ctx.font = 'bold 18px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                // Ajustar texto si es muy largo
-                if (box.text.length > 8) ctx.font = 'bold 14px Arial';
-                ctx.fillText(box.text, box.x + box.width / 2, box.y + box.height / 2);
-            });
+                    let playerTop = player.offsetTop;
+                    let wallBottom = wallY + 120; // 120px is wall height
+                    let distance = playerTop - wallBottom;
+
+                    // Detener 30px antes
+                    if (!questionAnswered && distance <= 30 && distance > 0) {
+                        isMoving = false;
+                        wallY = playerTop - 120 - 30; // Ajuste exacto
+                        showQuestion();
+                        startQuestionTimer();
+                    }
+
+                    // Resetear cuando sale de pantalla
+                    if (wallY > app.offsetHeight) {
+                        prepareNextQuestion();
+                    }
+
+                    wall.style.transform = `translateY(${wallY}px)`;
+                } else {
+                    player.style.animationPlayState = 'paused';
+                }
+
+                // Suavizado del movimiento
+                playerCurrentX += (playerTargetX - playerCurrentX) * 15 * dt;
+                playerCurrentY += (playerTargetY - playerCurrentY) * 15 * dt;
+                updatePlayerPos();
+            }
+
+            requestAnimationFrame(loop);
+        }
+
+        function updatePlayerPos() {
+            player.style.transform = `translate(${playerCurrentX}px, ${playerCurrentY}px)`;
+        }
+
+        function startQuestionTimer() {
+            timeLeft = 25;
+            document.getElementById('time-val').innerText = timeLeft;
+            questionTimer = setInterval(() => {
+                if (gameState !== 'playing') return;
+                timeLeft--;
+                document.getElementById('time-val').innerText = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(questionTimer);
+                    handleTimeout();
+                }
+            }, 1000);
+        }
+
+        function confirmSelection() {
+            questionAnswered = true;
+            if (questionTimer) clearInterval(questionTimer);
+            hideQuestion();
+
+            let doorWidth = app.offsetWidth / options.length;
+            let playerCenterX = playerCurrentX + 25;
+            let chosenIndex = Math.floor(playerCenterX / doorWidth);
+            if (chosenIndex < 0) chosenIndex = 0;
+            if (chosenIndex >= options.length) chosenIndex = options.length - 1;
+
+            // Animación de colisión
+            playerTargetY = -100;
+
+            setTimeout(() => {
+                playerTargetY = 0;
+                evaluateAnswer(chosenIndex, false);
+            }, 250);
+        }
+
+        function handleTimeout() {
+            questionAnswered = true;
+            hideQuestion();
+
+            let doorWidth = app.offsetWidth / options.length;
+            let playerCenterX = playerCurrentX + 25;
+            let chosenIndex = Math.floor(playerCenterX / doorWidth);
+            if (chosenIndex < 0) chosenIndex = 0;
+            if (chosenIndex >= options.length) chosenIndex = options.length - 1;
+
+            playerTargetY = -100;
+            setTimeout(() => {
+                playerTargetY = 0;
+                evaluateAnswer(chosenIndex, true);
+            }, 250);
+        }
+
+        function showQuestion() {
+            document.getElementById('question-bubble').classList.add('show');
+        }
+
+        function hideQuestion() {
+            document.getElementById('question-bubble').classList.remove('show');
+        }
+
+        function evaluateAnswer(index, isTimeout = false) {
+            if (!isTimeout && options[index] === currentQuestion.correct) {
+                // Acierto
+                streak++;
+                let bonusText = "";
+
+                if (streak % 10 === 0 && streak > 0) {
+                    health = Math.min(100, health + 25);
+                    speed = Math.min(100, speed + 10);
+                    bonusText = "\n¡+25% Vida, +10% Vel!";
+                }
+
+                updateHUD();
+                openDoor(index);
+                showFeedback("¡Correcto!" + bonusText, "success", 1000);
+
+                setTimeout(() => {
+                    isMoving = true;
+                    currentQIndex++;
+                }, 1000);
+            } else {
+                // Error
+                streak = 0;
+                health = Math.max(0, health - 25);
+                speed = Math.max(10, speed - 10);
+                updateHUD();
+
+                let correctIdx = options.indexOf(currentQuestion.correct);
+                openDoor(correctIdx);
+                if (wall.children[index] && !isTimeout) {
+                    wall.children[index].classList.add('door-wrong');
+                }
+
+                if (isTimeout) {
+                    showFeedback(`¡Incorrecto!\nLa respuesta era:\n${currentQuestion.correct}`, "error", 5000);
+                } else {
+                    showFeedback(`¡Incorrecto!\nLa respuesta era:\n${currentQuestion.correct}`, "error", 5000);
+                }
+
+                if (health <= 0) {
+                    setTimeout(() => {
+                        gameState = 'game_over';
+                        document.getElementById('final-score').innerText = currentQIndex;
+                        document.getElementById('game-over-screen').classList.remove('hidden');
+                    }, 5000);
+                } else {
+                    setTimeout(() => {
+                        isMoving = true;
+                        currentQIndex++;
+                    }, 5000);
+                }
+            }
+        }
+
+        function openDoor(index) {
+            if (wall.children[index]) {
+                wall.children[index].classList.add('door-open');
+            }
+        }
+
+        function showFeedback(text, type, duration) {
+            feedbackDiv.className = type;
+            feedbackDiv.innerHTML = `<h1>${text.replace(/\n/g, '<br>')}</h1>`;
+            feedbackDiv.style.display = 'flex';
+            setTimeout(() => {
+                if (gameState === 'playing' || gameState === 'game_over') {
+                    feedbackDiv.style.display = 'none';
+                }
+            }, duration);
+        }
+
+        function updateHUD() {
+            document.getElementById('health-val').innerText = health;
+            document.getElementById('speed-val').innerText = speed;
+            document.getElementById('streak-val').innerText = streak;
+
+            const hpStat = document.querySelector('.health-stat');
+            if (health <= 25) {
+                hpStat.style.color = 'var(--primary)';
+                hpStat.style.animation = 'pulse 0.5s infinite';
+            } else {
+                hpStat.style.color = 'white';
+                hpStat.style.animation = 'none';
+            }
+
+            const streakStat = document.querySelector('.streak-stat');
+            if (streak >= 3) {
+                streakStat.classList.add('streak-active');
+            } else {
+                streakStat.classList.remove('streak-active');
+            }
         }
     </script>
 </body>
+
 </html>
